@@ -2,3 +2,4 @@
 user_id.json
 credentials.json
 cookies.pkl
+/backend/__pycache__/*
