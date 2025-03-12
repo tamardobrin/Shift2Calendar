@@ -1,11 +1,14 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import Body
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 import requests
 import pickle
 import json
 import os
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from datetime import datetime
 import pandas as pd
@@ -22,6 +25,11 @@ app.add_middleware(
 )
 
 load_dotenv()
+
+CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 
 CALENDAR_ID = os.getenv("CALENDAR_ID", "primary")
 ROLES_API_URL = "https://app.shiftorganizer.com/api/roles-list/"
@@ -42,33 +50,26 @@ def load_user_id():
         with open("user_id.json", "r") as file:
             return json.load(file).get("id", None)
     except (FileNotFoundError, json.JSONDecodeError):
-        print("Error: User ID file not found or corrupted.")
         return None
 
 def get_current_rota_id(session):
     response = session.get(ROTA_URL)
     if response.status_code == 200:
         return response.json()[0].get("id", None)
-    else:
-        print(f"Failed to fetch rota ID! Status code: {response.status_code}")
-        return None
+    return None
 
 def get_role_mapping(session):
     response = session.get(ROLES_API_URL)
     if response.status_code == 200:
         return {entry["id"]: entry["name"] for entry in response.json()}
-    else:
-        print("Failed to fetch role names!")
-        return {}
+    return {}
 
 def get_schedule_data(session, rota_id, user_id):
     API_URL = f"https://app.shiftorganizer.com/api/cells/?rota={rota_id}&employee={user_id}"
     response = session.get(API_URL)
     if response.status_code == 200:
         return response.json()
-    else:
-        print(f"Failed to fetch schedule! Status code: {response.status_code}")
-        return []
+    return []
 
 def format_event(row):
     start_datetime = f"{row['date']}T{row['planned_start']}"
@@ -77,7 +78,6 @@ def format_event(row):
         datetime.fromisoformat(start_datetime)
         datetime.fromisoformat(end_datetime)
     except ValueError:
-        print(f"Invalid date format: {start_datetime} - {end_datetime}")
         return None
     return {
         "summary": f"Work Shift - {row['role_name']}",
@@ -85,21 +85,6 @@ def format_event(row):
         "end": {"dateTime": end_datetime, "timeZone": "Asia/Jerusalem"},
     }
 
-def add_events_to_google_calendar(events):
-    SCOPES = ["https://www.googleapis.com/auth/calendar"]
-    SERVICE_ACCOUNT_FILE = "credentials.json"
-    try:
-        credentials = service_account.Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE, scopes=SCOPES
-        )
-        service = build("calendar", "v3", credentials=credentials)
-        for event in events:
-            if event:
-                created_event = service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
-                print(f"Event created: {created_event.get('htmlLink')}")
-    except Exception as e:
-        print(f"Error adding event to Google Calendar: {e}")
-        
 @app.get("/")
 def home():
     return {"message": "FastAPI Backend is Running!"}
@@ -134,10 +119,81 @@ def fetch_schedule(user_id: int):
     } for entry in schedule_data]
     return extracted_data
 
-@app.post("/sync-calendar/{user_id}")
-def sync_calendar(user_id: int):
-    schedule = fetch_schedule(user_id)
-    df = pd.DataFrame(schedule)
-    events = [format_event(row) for _, row in df.iterrows()]
-    add_events_to_google_calendar(events)
-    return {"message": "Shifts synced to Google Calendar!"}
+# Generate Google Calendar Event Link for Individual Shift
+@app.get("/calendar-link")
+def generate_calendar_link(date: str, start_time: str, end_time: str, role_name: str):
+    base_url = "https://www.google.com/calendar/event?action=TEMPLATE"
+    formatted_date = date.replace("-", "")
+    start_datetime = f"{formatted_date}T{start_time.replace(':', '')}"
+    end_datetime = f"{formatted_date}T{end_time.replace(':', '')}"
+    event_title = f"Shift - {role_name}"
+
+    event_url = f"{base_url}&dates={start_datetime}/{end_datetime}&text={event_title}&location=&details=Shift+scheduled"
+    return {"google_calendar_link": event_url}
+
+@app.get("/auth/login")
+def login_with_google():
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "redirect_uris": [REDIRECT_URI],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=SCOPES,
+    )
+    flow.redirect_uri = REDIRECT_URI
+    authorization_url, _ = flow.authorization_url(access_type="offline", prompt="consent")
+    return RedirectResponse(authorization_url)
+
+@app.get("/auth/callback")
+def auth_callback(code: str):
+    """Handles Google OAuth callback, gets access token."""
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "redirect_uris": [REDIRECT_URI],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=SCOPES,
+    )
+    flow.redirect_uri = REDIRECT_URI
+    flow.fetch_token(code=code)
+
+    credentials = flow.credentials
+    access_token = credentials.token  
+    refresh_token = credentials.refresh_token 
+
+    # Redirect to frontend with the token
+    return RedirectResponse(f"http://localhost:5173/dashboard?access_token={access_token}")
+
+
+
+@app.post("/sync-calendar-oauth")
+def sync_calendar_oauth(
+    access_token: str = Body(..., embed=True), 
+    shifts: list = Body(...)
+):
+    """Uses Google OAuth token to add multiple shifts to Google Calendar."""
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Missing access token")
+
+    creds = Credentials(token=access_token)
+    service = build("calendar", "v3", credentials=creds)
+
+    for shift in shifts:
+        event = {
+            "summary": f"Shift - {shift['role_name']}",
+            "start": {"dateTime": f"{shift['date']}T{shift['planned_start']}", "timeZone": "Asia/Jerusalem"},
+            "end": {"dateTime": f"{shift['date']}T{shift['planned_end']}", "timeZone": "Asia/Jerusalem"},
+        }
+        service.events().insert(calendarId="primary", body=event).execute()
+
+    return {"message": "Shifts added successfully via OAuth!"}

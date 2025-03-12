@@ -1,7 +1,7 @@
 <template>
   <div class="dashboard-container">
-    <h2>Welcome to Your Shift Dashboard</h2>
-    <button @click="fetchSchedule">Load My Shifts</button>
+    <h2>My Shifts</h2>
+    <button @click="fetchSchedule">📅 Load My Shifts</button>
 
     <ul v-if="shifts.length">
       <li v-for="shift in shifts" :key="shift.date">
@@ -9,6 +9,8 @@
         <a :href="generateEventLink(shift)" target="_blank">📅 Add to Google Calendar</a>
       </li>
     </ul>
+    <button v-if="!accessToken" @click="googleLogin">🔗 Log in with Google to add all shifts</button>
+    <button v-if="shifts.length && accessToken" @click="syncShifts">📅 Add All Shifts to Google Calendar</button>
   </div>
 </template>
 
@@ -18,9 +20,19 @@ import api from "../api.js";
 export default {
   data() {
     return {
-      userId: localStorage.getItem("user_id"),
-      shifts: [],
+      userId: localStorage.getItem("user_id") || "",
+      accessToken: localStorage.getItem("access_token") || "",
+      shifts: []
     };
+  },
+  created() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get("access_token");
+    if (token) {
+      localStorage.setItem("access_token", token);
+      this.accessToken = token;
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   },
   methods: {
     async fetchSchedule() {
@@ -28,37 +40,28 @@ export default {
         const response = await api.fetchSchedule(this.userId);
         this.shifts = response.data;
       } catch (error) {
-        console.error("Failed to load shifts.");
+        alert("Failed to load shifts.");
+      }
+    },
+    async syncShifts() {
+      if (!this.accessToken) {
+        alert("Please log in with Google first.");
+        return;
+      }
+
+      try {
+        await api.syncCalendarOAuth(this.accessToken, this.shifts);
+        alert("Shifts added to Google Calendar!");
+      } catch (error) {
+        alert("Failed to sync shifts.");
       }
     },
     generateEventLink(shift) {
-      const baseUrl = "https://www.google.com/calendar/event?action=TEMPLATE";
-      
-      const formattedDate = shift.date.replace(/-/g, '');
-
-      const startDateTime = `${formattedDate}T${shift.planned_start.replace(/:/g, '')}`;
-      const endDateTime = `${formattedDate}T${shift.planned_end.replace(/:/g, '')}`;
-
-      const title = encodeURIComponent(`Shift - ${shift.role_name}`);
-
-      return `${baseUrl}&dates=${startDateTime}/${endDateTime}&text=${title}&location=&details=Shift+scheduled`;
+      return api.generateEventLink(shift);
+    },
+    googleLogin() {
+      api.googleLogin();
     }
   }
 };
 </script>
-
-<style scoped>
-.dashboard-container {
-  max-width: 400px;
-  margin: auto;
-  text-align: center;
-}
-button {
-  margin: 10px;
-  padding: 8px;
-  background: green;
-  color: white;
-  border: none;
-  cursor: pointer;
-}
-</style>
