@@ -29,7 +29,7 @@
           const response = await api.login(this.company, this.username, this.password);
           this.message = response.data.message;
           localStorage.setItem("user_id", response.data.user_id);
-          this.$router.push("/dashboard"); // Redirect after login
+          this.$router.push("/dashboard"); 
         } catch (error) {
           this.message = "Login failed!";
         }
