@@ -99,6 +99,10 @@ def add_events_to_google_calendar(events):
                 print(f"Event created: {created_event.get('htmlLink')}")
     except Exception as e:
         print(f"Error adding event to Google Calendar: {e}")
+        
+@app.get("/")
+def home():
+    return {"message": "FastAPI Backend is Running!"}
 
 @app.post("/login")
 def login(data: LoginRequest):
