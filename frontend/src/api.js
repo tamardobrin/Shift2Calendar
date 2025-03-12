@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = "https://shift2calendar.onrender.com";
 export default {
     login(company, username, password) {
         return axios.post(`${API_BASE_URL}/login`, { company, username, password });
