@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "https://dobrin.xyz/api";
+const API_BASE_URL = "https://dobrin.xyz";
 export default {
     login(company, username, password) {
         return axios.post(`${API_BASE_URL}/login`, { company, username, password });
