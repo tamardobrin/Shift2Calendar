@@ -172,7 +172,7 @@ def auth_callback(code: str):
     refresh_token = credentials.refresh_token 
 
     # Redirect to frontend with the token
-    return RedirectResponse(f"http://localhost:5173/dashboard?access_token={access_token}")
+    return RedirectResponse(f"https://dobrin.xyz/dashboard?access_token={access_token}")
 
 
 
