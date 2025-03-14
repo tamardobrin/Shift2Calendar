@@ -65,7 +65,9 @@ def get_role_mapping(session):
     return {}
 
 def get_schedule_data(session, rota_id, user_id):
-    API_URL = f"https://app.shiftorganizer.com/api/cells/?rota={rota_id}&employee={user_id}"
+    API_URL = (
+        f"https://app.shiftorganizer.com/api/cells/?rota={rota_id}&employee={user_id}"
+    )
     response = session.get(API_URL)
     if response.status_code == 200:
         return response.json()
@@ -92,7 +94,11 @@ def home():
 @app.post("/login")
 def login(data: LoginRequest):
     session = requests.Session()
-    login_payload = {"company": data.company, "username": data.username, "password": data.password}
+    login_payload = {
+        "company": data.company,
+        "username": data.username,
+        "password": data.password,
+    }
     response = session.post(LOGIN_URL, json=login_payload)
     if response.status_code == 200:
         with open("cookies.pkl", "wb") as file:
@@ -110,13 +116,17 @@ def fetch_schedule(user_id: int):
         raise HTTPException(status_code=400, detail="Failed to get rota ID.")
     role_mapping = get_role_mapping(session)
     schedule_data = get_schedule_data(session, rota_id, user_id)
-    extracted_data = [{
-        "date": entry["date"],
-        "planned_start": entry["planned_start"],
-        "planned_end": entry["planned_end"],
-        "role": entry["role"],
-        "role_name": role_mapping.get(entry["role"], "Unknown Role")
-    } for entry in schedule_data]
+    extracted_data = [
+        {
+            "date": entry["date"],
+            "planned_start": entry["planned_start"],
+            "planned_end": entry["planned_end"],
+            "role": entry["role"],
+            "role_name": role_mapping.get(entry["role"], "Unknown Role"),
+        }
+        for entry in schedule_data
+        if entry.get("planned_start") and entry.get("planned_end")
+    ]
     return extracted_data
 
 # Generate Google Calendar Event Link for Individual Shift
@@ -146,7 +156,9 @@ def login_with_google():
         scopes=SCOPES,
     )
     flow.redirect_uri = REDIRECT_URI
-    authorization_url, _ = flow.authorization_url(access_type="offline", prompt="consent")
+    authorization_url, _ = flow.authorization_url(
+        access_type="offline", prompt="consent"
+    )
     return RedirectResponse(authorization_url)
 
 @app.get("/auth/callback")
@@ -168,18 +180,16 @@ def auth_callback(code: str):
     flow.fetch_token(code=code)
 
     credentials = flow.credentials
-    access_token = credentials.token  
-    refresh_token = credentials.refresh_token 
+    access_token = credentials.token
+    refresh_token = credentials.refresh_token
 
     # Redirect to frontend with the token
     return RedirectResponse(f"https://dobrin.xyz/dashboard?access_token={access_token}")
 
 
-
 @app.post("/sync-calendar-oauth")
 def sync_calendar_oauth(
-    access_token: str = Body(..., embed=True), 
-    shifts: list = Body(...)
+    access_token: str = Body(..., embed=True), shifts: list = Body(...)
 ):
     """Uses Google OAuth token to add multiple shifts to Google Calendar."""
     if not access_token:
@@ -191,8 +201,14 @@ def sync_calendar_oauth(
     for shift in shifts:
         event = {
             "summary": f"Shift - {shift['role_name']}",
-            "start": {"dateTime": f"{shift['date']}T{shift['planned_start']}", "timeZone": "Asia/Jerusalem"},
-            "end": {"dateTime": f"{shift['date']}T{shift['planned_end']}", "timeZone": "Asia/Jerusalem"},
+            "start": {
+                "dateTime": f"{shift['date']}T{shift['planned_start']}",
+                "timeZone": "Asia/Jerusalem",
+            },
+            "end": {
+                "dateTime": f"{shift['date']}T{shift['planned_end']}",
+                "timeZone": "Asia/Jerusalem",
+            },
         }
         service.events().insert(calendarId="primary", body=event).execute()
 
