@@ -183,7 +183,17 @@ def auth_callback(code: str):
     access_token = credentials.token
     refresh_token = credentials.refresh_token
 
-    # Redirect to frontend with the token
+    token_data = {
+    "access_token": credentials.token,
+    "refresh_token": credentials.refresh_token,
+    "token_uri": credentials.token_uri,
+    "client_id": credentials.client_id,
+    "client_secret": credentials.client_secret,
+    }
+
+    with open("oauth_credentials.json", "w") as f:
+        json.dump(token_data, f)
+
     return RedirectResponse(f"https://dobrin.xyz/dashboard?access_token={access_token}")
 
 
@@ -195,7 +205,17 @@ def sync_calendar_oauth(
     if not access_token:
         raise HTTPException(status_code=400, detail="Missing access token")
 
-    creds = Credentials(token=access_token)
+    # creds = Credentials(token=access_token)
+    with open("oauth_credentials.json", "r") as f:
+       token_data = json.load(f)
+
+    creds = Credentials(
+        token=token_data["access_token"],
+        refresh_token=token_data.get("refresh_token"),
+        token_uri=token_data["token_uri"],
+        client_id=token_data["client_id"],
+        client_secret=token_data["client_secret"],
+    )
     service = build("calendar", "v3", credentials=creds)
 
     for shift in shifts:
