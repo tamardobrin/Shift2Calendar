@@ -10,7 +10,7 @@ import os
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -219,14 +219,27 @@ def sync_calendar_oauth(
     service = build("calendar", "v3", credentials=creds)
 
     for shift in shifts:
+        start = shift.get("planned_start")
+        end = shift.get("planned_end")
+        date = shift.get("date")
+
+        if not start or not end:
+            continue
+
+        start_dt = datetime.fromisoformat(f"{date}T{start}")
+        end_dt = datetime.fromisoformat(f"{date}T{end}")
+
+        if end_dt <= start_dt:
+            end_dt += timedelta(days=1)
+
         event = {
             "summary": f"Shift - {shift['role_name']}",
             "start": {
-                "dateTime": f"{shift['date']}T{shift['planned_start']}",
+                "dateTime": start_dt.isoformat(),
                 "timeZone": "Asia/Jerusalem",
             },
             "end": {
-                "dateTime": f"{shift['date']}T{shift['planned_end']}",
+                "dateTime": end_dt.isoformat(),
                 "timeZone": "Asia/Jerusalem",
             },
         }
