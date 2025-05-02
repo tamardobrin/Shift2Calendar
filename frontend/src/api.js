@@ -10,8 +10,8 @@ export default {
         return axios.get(`${API_BASE_URL}/schedule/${userId}`);
     },
 
-    googleLogin() {
-        window.location.href = `${API_BASE_URL}/auth/login`;
+    googleLogin(userId) {
+        window.location.href = `${API_BASE_URL}/auth/login?user_id=${userId}`;
     },
 
     syncCalendarOAuth(accessToken, shifts, userId) {

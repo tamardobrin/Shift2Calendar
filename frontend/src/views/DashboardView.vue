@@ -77,7 +77,7 @@ export default {
       return api.generateEventLink(shift);
     },
     googleLogin() {
-      api.googleLogin();
+      api.googleLogin(this.userId);
     }
   }
 };
@@ -167,6 +167,7 @@ h2 {
   .dashboard-container {
     width: 90%;
   }
+
   .shift-item {
     flex-direction: column;
     text-align: center;
