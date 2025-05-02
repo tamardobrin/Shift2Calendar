@@ -137,9 +137,9 @@ def login_with_google(user_id: str):
     )
     flow.redirect_uri = REDIRECT_URI
     authorization_url, _ = flow.authorization_url(
-        access_type="offline", prompt="consent", include_granted_scopes="true"
+        access_type="offline", prompt="consent", include_granted_scopes="true", state=user_id
     )
-    return RedirectResponse(f"{authorization_url}&state={user_id}")
+    return RedirectResponse(authorization_url)
 
 @app.get("/auth/callback")
 def auth_callback(code: str, state: str):
