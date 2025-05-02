@@ -14,12 +14,14 @@ export default {
         window.location.href = `${API_BASE_URL}/auth/login`;
     },
 
-    syncCalendarOAuth(accessToken, shifts) {
+    syncCalendarOAuth(accessToken, shifts, userId) {
         return axios.post(`${API_BASE_URL}/sync-calendar-oauth`, {
-            access_token: accessToken,
-            shifts: shifts
+          access_token: accessToken,
+          shifts: shifts,
+          user_id: userId,
         });
     },
+      
 
     generateEventLink(shift) {
         const baseUrl = "https://www.google.com/calendar/event?action=TEMPLATE";

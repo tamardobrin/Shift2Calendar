@@ -177,9 +177,9 @@ def auth_callback(code: str, state: str):
 
 @app.post("/sync-calendar-oauth")
 def sync_calendar_oauth(
-    user_id: str = Body(...),
-    access_token: str = Body(...),
-    shifts: list = Body(...)
+    access_token: str = Body(..., embed=True),
+    shifts: list = Body(...),
+    user_id: int = Body(..., embed=True),
 ):
     try:
         with open(f"tokens/{user_id}.json", "r") as f:
