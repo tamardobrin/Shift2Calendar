@@ -10,7 +10,7 @@
       <ul>
         <li v-for="shift in shifts" :key="shift.date" class="shift-item">
           <div class="shift-details">
-            <strong>{{ shift.date }}</strong> 
+            <strong>{{ shift.date }}</strong>
             ({{ shift.planned_start }} - {{ shift.planned_end }})
           </div>
           <a :href="generateEventLink(shift)" target="_blank" class="btn btn-link">
@@ -67,7 +67,7 @@ export default {
         return;
       }
       try {
-        await api.syncCalendarOAuth(this.accessToken, this.shifts);
+        await api.syncCalendarOAuth(this.accessToken, this.shifts, this.userId);
         alert("Shifts added to Google Calendar!");
       } catch (error) {
         alert("Failed to sync shifts.");
@@ -92,7 +92,7 @@ body {
 }
 
 .dashboard-container {
-  max-width: 800px; 
+  max-width: 800px;
   margin: 40px auto;
   padding: 20px;
   background: white;
